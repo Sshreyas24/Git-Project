@@ -1,0 +1,49 @@
+trigger:
+- Developer
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  solution: '**/*.sln'
+  buildConfiguration: 'Release'
+  outputDirectory: '$(build.artifactstagingdirectory)/output'
+  artifactName: 'cr-backend-artifact'
+
+steps:
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '6.x'
+
+- task: NuGetToolInstaller@1
+  inputs:
+    versionSpec: '5.x'
+
+- task: NuGetCommand@2
+  inputs:
+    restoreSolution: '$(solution)'
+
+- task: VSBuild@1
+  inputs:
+    solution: '$(solution)'
+    platform: 'Any CPU'
+    configuration: '$(buildConfiguration)'
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: '$(System.DefaultWorkingDirectory)'
+    Contents: '**/*.dll'
+    TargetFolder: '$(outputDirectory)'
+
+# Create a ZIP archive from the artifacts
+- powershell: |
+    $dllFiles = Get-ChildItem -Path $(outputDirectory) -Filter *.dll
+    Compress-Archive -Path $dllFiles.FullName -DestinationPath $(build.artifactstagingdirectory)/$(artifactName).zip -Force
+  displayName: 'Create ZIP Archive'
+
+# Publish the ZIP archive as an artifact
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(build.artifactstagingdirectory)/$(artifactName).zip'
+    artifactName: '$(artifactName)'
